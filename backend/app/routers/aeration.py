@@ -58,6 +58,16 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     return ActionResult(ok=True, message=message, entry=entry)
 
 
+@router.post("/{entry_id}/suggestion", response_model=ActionResult)
+def generate_suggestion(entry_id: int) -> ActionResult:
+    """生成溶解氧与风量联动建议：超限给出建议档位与优先级；溶解氧为空、风机频率超限、
+    重复提交等情况说明原因，不改动记录状态，手动调节入口保持原样。"""
+    entry, message = service.generate_suggestion(entry_id)
+    if entry is None:
+        return ActionResult(ok=False, message=message)
+    return ActionResult(ok=True, message=message, entry=entry)
+
+
 @router.get("/export")
 def export_entries() -> dict[str, Any]:
     """导出曝气控制清单：返回当前过滤条件下的全量数据。"""

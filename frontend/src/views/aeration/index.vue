@@ -3,7 +3,7 @@
     <header class="page-head">
       <div>
         <h2>曝气控制管理</h2>
-        <p class="page-desc">维护曝气记录，围绕记录编号、曝气池编号、溶解氧值、风量设定做登记、筛选与状态流转。</p>
+        <p class="page-desc">维护曝气记录，围绕记录编号、曝气池编号、溶解氧值、风量设定做登记、筛选与状态流转，并按曝气池编号生成溶解氧与风量联动建议。</p>
       </div>
       <div class="page-actions">
         <button class="btn primary" type="button" @click="openCreate">登记曝气记录</button>
@@ -36,8 +36,14 @@
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
-          <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td v-for="column in columns" :key="column">
+            <span v-if="column === '建议优先级' && row[column]" :class="`priority-${row[column]}`">
+              {{ row[column] }}
+            </span>
+            <template v-else>{{ row[column] ?? '—' }}</template>
+          </td>
           <td class="row-actions">
+            <button class="link" type="button" @click="generateSuggestion(row)">联动建议</button>
             <button
               v-for="action in actions"
               :key="action"
@@ -70,7 +76,7 @@ import { request } from '@/api/client'
 type Row = Record<string, string | number | null>
 
 const ENDPOINT = '/api/aeration'
-const columns = ["记录编号", "曝气池编号", "溶解氧值", "风量设定", "风机频率", "调节时间", "操作人员", "控制状态"]
+const columns = ["记录编号", "曝气池编号", "溶解氧值", "风量设定", "风机频率", "调节时间", "操作人员", "控制状态", "联动建议", "建议优先级"]
 const actions = ["提交调节", "复核确认", "锁定参数"]
 const statuses = ["待调节", "已调节", "待复核", "已锁定"]
 const stats = [{"label": "今日调节次数", "value": 0}, {"label": "溶解氧均值", "value": 0}, {"label": "锁定参数项", "value": 0}]
@@ -107,6 +113,20 @@ async function runAction(action: string, row: Row) {
     await reload()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '曝气控制操作失败'
+  }
+}
+
+async function generateSuggestion(row: Row) {
+  errorMessage.value = ''
+  try {
+    const response = await request(`${ENDPOINT}/${row.id}/suggestion`, { method: 'POST' })
+    const payload = await response.json()
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.message ?? '联动建议生成失败，请稍后重试')
+    }
+    await reload()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '联动建议生成失败'
   }
 }
 
