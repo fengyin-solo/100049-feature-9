@@ -1,4 +1,4 @@
-"""曝气控制接口：维护曝气记录，覆盖提交调节、复核确认、锁定参数等动作。"""
+"""曝气控制接口：维护曝气记录，覆盖提交调节、复核确认、锁定参数与溶解氧-风量联动建议。"""
 from __future__ import annotations
 
 from typing import Any
@@ -30,6 +30,19 @@ def list_entries(
     return PageResult(items=items, total=total, page=page, size=size)
 
 
+@router.get("/tank-rules")
+def list_tank_rules() -> dict[str, Any]:
+    """按曝气池编号列出溶解氧目标范围、风量调节阈值与风机频率上限。"""
+    return {"module": "aeration", "items": service.tank_rules()}
+
+
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出曝气控制清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "aeration", "total": total, "items": items}
+
+
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条曝气记录明细；不存在时给出可读的错误说明。"""
@@ -58,8 +71,10 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     return ActionResult(ok=True, message=message, entry=entry)
 
 
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出曝气控制清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "aeration", "total": total, "items": items}
+@router.post("/{entry_id}/suggestion", response_model=ActionResult)
+def build_suggestion(entry_id: int, payload: EntryPayload) -> ActionResult:
+    """生成溶解氧-风量联动建议；溶解氧为空、风机频率超限、同一记录重复提交都会说明原因。"""
+    entry, message = service.build_suggestion(entry_id, payload.values)
+    if entry is None:
+        return ActionResult(ok=False, message=message)
+    return ActionResult(ok=True, message=message, entry=entry)
